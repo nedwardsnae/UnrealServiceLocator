@@ -1,0 +1,25 @@
+{
+	"FileVersion" : 1,
+	"Version" : 1,
+	"VersionName" : "0.1",
+	"FriendlyName" : "Unreal Service Locator",
+	"Description" : "Service Locator for UE4",
+	"Category" : "Runtime",
+	"CreatedBy" : "Nick Edwards",
+	"CreatedByURL" : "http://nickedwards.co.uk",
+	"DocsURL" : "",
+	"MarketplaceURL" : "",
+	"SupportURL" : "",
+	"EnabledByDefault" : true,
+	"CanContainContent" : false,
+	"IsBetaVersion" : false,
+	"Installed" : false,
+	"Modules" :
+	[
+		{
+			"Name" : "UnrealServiceLocator",
+			"Type" : "Runtime",
+			"LoadingPhase" : "Default"
+		}
+	]
+}
