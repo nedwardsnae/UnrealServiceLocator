@@ -4,9 +4,9 @@ public class UnrealServiceLocator : ModuleRules
 {
 	public UnrealServiceLocator(ReadOnlyTargetRules Target) : base(Target)
 	{
-        PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange
+		PublicDependencyModuleNames.AddRange
 		(
 			new string[]
 			{
@@ -14,6 +14,6 @@ public class UnrealServiceLocator : ModuleRules
 				"CoreUObject",
 				"Engine",
 			}
-		);
+			);
 	}
 }
