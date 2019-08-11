@@ -67,7 +67,7 @@ void UServiceLocatorContainer::LocateAndCreateServices()
 			continue;
 		}
 
-		ServiceInterfaces.Emplace(InterfaceTypeRawPtr, ConcreteServiceInstance);
+		Services.Emplace(InterfaceTypeRawPtr, ConcreteServiceInstance);
 	}
 }
 
@@ -75,7 +75,7 @@ void UServiceLocatorContainer::LocateAndCreateServices()
 
 UObject* UServiceLocatorContainer::GetService(const UClass* ServiceClass) const
 {
-	if (!IsValid(ServiceClass) || !ensure(!ServiceClass->HasAnyClassFlags(EClassFlags::CLASS_Interface)))
+	if (!IsValid(ServiceClass))
 	{
 		return nullptr;
 	}
@@ -84,24 +84,6 @@ UObject* UServiceLocatorContainer::GetService(const UClass* ServiceClass) const
 	if (FoundService != nullptr)
 	{
 		return *FoundService;
-	}
-
-	return nullptr;
-}
-
-///////////////////////////////////////////////////////////////////////////
-
-UObject* UServiceLocatorContainer::GetServiceInterface(const UClass* ServiceInterfaceClass) const
-{
-	if (!IsValid(ServiceInterfaceClass) || !ensure(ServiceInterfaceClass->HasAnyClassFlags(EClassFlags::CLASS_Interface)))
-	{
-		return nullptr;
-	}
-
-	UObject* const* FoundServiceInterface = ServiceInterfaces.Find(ServiceInterfaceClass);
-	if (FoundServiceInterface != nullptr)
-	{
-		return *FoundServiceInterface;
 	}
 
 	return nullptr;

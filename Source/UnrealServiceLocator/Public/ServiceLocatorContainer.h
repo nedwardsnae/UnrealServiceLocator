@@ -19,7 +19,7 @@ enum class EServiceLocateBehaviour : uint8;
 
 ///////////////////////////////////////////////////////////////////////////
 
-UCLASS()
+UCLASS(DefaultToInstanced)
 class UNREALSERVICELOCATOR_API UServiceLocatorContainer : public UObject
 {
 	GENERATED_BODY()
@@ -31,9 +31,8 @@ public:
 
 	void LocateAndCreateServices();
 
-	// "Internal" functions exposed for use by GetServiceFromObject in ServiceLocatorAccessors
+	// "Internal" function exposed for use by GetServiceFromObject in ServiceLocatorAccessors
 	UObject* GetService(const UClass* ServiceClass) const;
-	UObject* GetServiceInterface(const UClass* ServiceInterfaceClass) const;
 
 private:
 
@@ -53,9 +52,6 @@ private:
 
 	UPROPERTY(Transient)
 	TMap<UClass*, UObject*> Services;
-
-	UPROPERTY(Transient)
-	TMap<UClass*, UObject*> ServiceInterfaces;
 
 };
 
