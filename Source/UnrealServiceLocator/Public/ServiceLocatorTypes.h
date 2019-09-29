@@ -35,11 +35,11 @@ public:
 
 	// The concrete type to locate
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<UObject> ConcreteType;
+	UClass* ConcreteType = nullptr;
 
 	// (Optional) An interface to expose the service via
 	UPROPERTY(EditAnywhere, meta = (AllowAbstract))
-	TSubclassOf<UInterface> InterfaceType;
+	TArray<UClass*> InterfaceTypes;
 
 	UPROPERTY(EditAnywhere)
 	EServiceLocateBehaviour LocateBehaviour = EServiceLocateBehaviour::CreateIfNotFound;

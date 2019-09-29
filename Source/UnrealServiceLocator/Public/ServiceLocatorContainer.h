@@ -9,6 +9,7 @@
 #include "UObject/SoftObjectPtr.h"
 
 // UnrealServiceLocator
+#include "ServiceLocatorHelpers.h"
 #include "ServiceLocatorContainer.generated.h"
 
 // Forward Declarations
@@ -29,12 +30,46 @@ public:
 	//////////////////////////////////////////////
 	// Functions
 
+	/////////////////////
+	// Member Functions
+
+	/**
+	 * According to the ServiceLocatorConfig, finds and/or creates services for retrieval
+	 */
 	void LocateAndCreateServices();
 
-	// "Internal" function exposed for use by GetServiceFromObject in ServiceLocatorAccessors
-	UObject* GetService(const UClass* ServiceClass) const;
+	/**
+	 * Returns an instance of the service specified by the ServiceType template parameter
+	 * @return	ServiceType*	The service instance
+	 */
+	template<typename ServiceType>
+	ServiceType* GetService() const;
 
-private:
+	/////////////////////
+	// Static Functions
+
+	/**
+	 * Returns an instance of the service specified by the ServiceType template parameter
+	 * @param	Object			The object to find the service locator container in
+	 * @return	ServiceType*	The service instance
+	 */
+	template<typename ServiceType, typename ObjectType>
+	static ServiceType* GetService(const ObjectType* Object);
+
+	/**
+	 * Returns an instance of the service specified by the ServiceType template parameter, with
+	 * a PreCastTransform callable which can be used to find another object to find the service locator
+	 * container in
+	 * @param	Object				The object to pass to the PreCastTransform callable
+	 * @param	PreCastTransform	The callable to use to transform the input object to another object where the service locator container can be found
+	 * @return	ServiceType*
+	 */
+	template<typename ServiceType, typename ObjectType, typename PreCastTransformType>
+	static ServiceType* GetService(const ObjectType* Object, PreCastTransformType&& PreCastTransform);
+
+protected:
+
+	UObject* GetServiceInternal(const UClass* ServiceClass) const;
 
 	UObject* LocateOrCreateService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour);
 	AActor* LocateOrCreateActorService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour);
@@ -54,5 +89,44 @@ private:
 	TMap<UClass*, UObject*> Services;
 
 };
+
+///////////////////////////////////////////////////////////////////////
+
+template<typename ServiceType>
+ServiceType* UServiceLocatorContainer::GetService() const
+{
+	UClass* ServiceTypeClass = TGetServiceClassType<ServiceType>::Execute();
+	check(ServiceTypeClass != nullptr);
+
+	return TGetServicePointer<ServiceType>::Execute(GetServiceInternal(ServiceTypeClass), ServiceTypeClass);
+}
+
+///////////////////////////////////////////////////////////////////////
+
+template<typename ServiceType, typename ObjectType>
+ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object)
+{
+	return GetService<ServiceType, ObjectType>(Object, FIdentityFunctor());
+}
+
+///////////////////////////////////////////////////////////////////////
+
+template<typename ServiceType, typename ObjectType, typename PreCastTransformType>
+ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object, PreCastTransformType&& PreCastTransform)
+{
+	const IServiceLocatorInterface* ObjectAsSLI = TGetObjectAsSLI<ObjectType, PreCastTransformType>::Execute(Object, Forward<PreCastTransformType>(PreCastTransform));
+	if (ObjectAsSLI == nullptr)
+	{
+		return nullptr;
+	}
+
+	UServiceLocatorContainer* Container = ObjectAsSLI->GetContainer();
+	if (Container == nullptr)
+	{
+		return nullptr;
+	}
+
+	return Container->GetService<ServiceType>();
+}
 
 ///////////////////////////////////////////////////////////////////////////

@@ -27,53 +27,64 @@ void UServiceLocatorContainer::LocateAndCreateServices()
 
 	const TArray<FServiceDescriptor>& ServiceDescriptors = Config->ServiceDescriptors;
 
-	for (auto Iter = ServiceDescriptors.CreateConstIterator(); Iter; ++Iter)
+	for (TArray<FServiceDescriptor>::TConstIterator Iter = ServiceDescriptors.CreateConstIterator(); Iter; ++Iter)
 	{
 		const FServiceDescriptor& ServiceDescriptor = *Iter;
 
-		UClass* ConcreteTypeRawPtr = ServiceDescriptor.ConcreteType.Get();
-		if (ConcreteTypeRawPtr == nullptr)
+		UClass* ConcreteType = ServiceDescriptor.ConcreteType;
+		if (ConcreteType == nullptr)
 		{
 			UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType is null for element '%d' in config '%s'"),
 				Iter.GetIndex(), *GetNameSafe(Config));
 			continue;
 		}
 
-		if (ConcreteTypeRawPtr->HasAnyClassFlags(CLASS_Abstract | CLASS_Interface))
+		if (ConcreteType->HasAnyClassFlags(CLASS_Abstract | CLASS_Interface))
 		{
 			UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType has Abstract or Interface class flags for element '%d' in config '%s'"),
 				Iter.GetIndex(), *GetNameSafe(Config));
 			continue;
 		}
 
-		UObject* ConcreteServiceInstance = LocateOrCreateService(*ConcreteTypeRawPtr, ServiceDescriptor.LocateBehaviour);
+		UObject* ConcreteServiceInstance = LocateOrCreateService(*ConcreteType, ServiceDescriptor.LocateBehaviour);
 		if (ConcreteServiceInstance == nullptr)
 		{
 			continue;
 		}
 
-		Services.Emplace(ConcreteTypeRawPtr, ConcreteServiceInstance);
+		Services.Emplace(ConcreteType, ConcreteServiceInstance);
 
-		UClass* InterfaceTypeRawPtr = ServiceDescriptor.InterfaceType.Get();
-		if (InterfaceTypeRawPtr == nullptr)
+		for (UClass* InterfaceType : ServiceDescriptor.InterfaceTypes)
 		{
-			continue;
-		}
+			if (InterfaceType == nullptr)
+			{
+				continue;
+			}
 
-		if (!ConcreteTypeRawPtr->ImplementsInterface(InterfaceTypeRawPtr))
-		{
-			UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType '%s' doesn't implement InterfaceType '%s'"),
-				*GetNameSafe(ConcreteTypeRawPtr), *GetNameSafe(InterfaceTypeRawPtr));
-			continue;
-		}
+			if (ConcreteType->HasAnyClassFlags(CLASS_Interface))
+			{
+				if (!ConcreteType->ImplementsInterface(InterfaceType))
+				{
+					UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType '%s' doesn't implement InterfaceType '%s'"),
+						*GetNameSafe(ConcreteType), *GetNameSafe(InterfaceType));
+					continue;
+				}
+			}
+			else if (!ConcreteType->IsChildOf(InterfaceType))
+			{
+				UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType '%s' isn't a child of InterfaceType '%s'"),
+					*GetNameSafe(ConcreteType), *GetNameSafe(InterfaceType));
+				continue;
+			}
 
-		Services.Emplace(InterfaceTypeRawPtr, ConcreteServiceInstance);
+			Services.Emplace(InterfaceType, ConcreteServiceInstance);
+		}
 	}
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-UObject* UServiceLocatorContainer::GetService(const UClass* ServiceClass) const
+UObject* UServiceLocatorContainer::GetServiceInternal(const UClass* ServiceClass) const
 {
 	if (!IsValid(ServiceClass))
 	{

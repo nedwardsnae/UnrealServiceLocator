@@ -14,12 +14,16 @@
 	"CanContainContent" : false,
 	"IsBetaVersion" : false,
 	"Installed" : false,
-	"Modules" :
-	[
+	"Modules": [
 		{
-			"Name" : "UnrealServiceLocator",
-			"Type" : "Runtime",
-			"LoadingPhase" : "Default"
+			"Name": "UnrealServiceLocator",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "UnrealServiceLocatorEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	]
 }

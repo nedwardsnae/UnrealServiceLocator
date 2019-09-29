@@ -13,13 +13,27 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-UObject* ServiceLocatorAccessors_Private::GetGameStateFromWorldContextObject(const UObject* WorldContextObject)
+namespace ServiceLocatorAccessors_Private
 {
-	UWorld* const World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
-	if (World == nullptr)
-		return nullptr;
-	
-	return World->GetGameState();
-}
+
+	const UObject* GetGameStateFromWorldContextObject(const UObject* WorldContextObject)
+	{
+		UWorld* const World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+		if (World == nullptr)
+			return nullptr;
+		
+		return World->GetGameState();
+	}
+
+	const UObject* GetGameModeFromWorldContextObject(const UObject* WorldContextObject)
+	{
+		UWorld* const World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+		if (World == nullptr)
+			return nullptr;
+
+		return World->GetAuthGameMode();
+	}
+
+} // namespace ServiceLocatorAccessors_Private
 
 ///////////////////////////////////////////////////////////////////////////
