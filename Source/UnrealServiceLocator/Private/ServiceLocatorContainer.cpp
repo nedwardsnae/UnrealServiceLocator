@@ -144,7 +144,9 @@ AActor* UServiceLocatorContainer::LocateOrCreateActorService(UClass& ServiceConc
 	}
 
 	// Create a new instance of the service
-	AActor* ServiceInstance = LocalWorld->SpawnActor<AActor>(&ServiceConcreteType);
+	FActorSpawnParameters ActorSpawnParameters;
+	ActorSpawnParameters.ObjectFlags = RF_Transient;
+	AActor* ServiceInstance = LocalWorld->SpawnActor<AActor>(&ServiceConcreteType, ActorSpawnParameters);
 	if (ServiceInstance == nullptr)
 	{
 		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to spawn instance of actor service with type '%s'"),
@@ -185,7 +187,7 @@ UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(UClass
 		return nullptr;
 	}
 
-	ServiceInstance = NewObject<UActorComponent>(OuterAsActor, &ServiceConcreteType);
+	ServiceInstance = NewObject<UActorComponent>(OuterAsActor, &ServiceConcreteType, NAME_None, RF_Transient);
 	if (ServiceInstance == nullptr)
 	{
 		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Unable to create instance of component service with type '%s'"),
@@ -193,6 +195,7 @@ UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(UClass
 		return nullptr;
 	}
 
+	ServiceInstance->CreationMethod = EComponentCreationMethod::Instance;
 	ServiceInstance->RegisterComponent();
 
 	return ServiceInstance;
@@ -216,7 +219,7 @@ UObject* UServiceLocatorContainer::LocateOrCreateObjectService(UClass& ServiceCo
 		return nullptr;
 	}
 
-	ServiceInstance = NewObject<UObject>(GetOuter(), &ServiceConcreteType);
+	ServiceInstance = NewObject<UObject>(GetOuter(), &ServiceConcreteType, NAME_None, RF_Transient);
 	if (ServiceInstance == nullptr)
 	{
 		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateObjectService: Unable to create instance of object service with type '%s'"),

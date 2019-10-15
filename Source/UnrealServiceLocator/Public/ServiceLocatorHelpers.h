@@ -28,24 +28,24 @@ struct TIsUInterface<T, true>
 
 ///////////////////////////////////////////////////////////////////////
 
-template<typename ObjectType, typename PreCastTransformType, bool bObjectIsSLIDerived = TPointerIsConvertibleFromTo<ObjectType, const volatile IServiceLocatorInterface>::Value>
+template<typename ObjectType, bool bObjectIsSLIDerived = TPointerIsConvertibleFromTo<ObjectType, const volatile IServiceLocatorInterface>::Value>
 struct TGetObjectAsSLI;
 
-template<typename ObjectType, typename PreCastTransformType>
-struct TGetObjectAsSLI<ObjectType, PreCastTransformType, true /* bObjectIsSLIDerived */>
+template<typename ObjectType>
+struct TGetObjectAsSLI<ObjectType, true /* bObjectIsSLIDerived */>
 {
-	static const IServiceLocatorInterface* Execute(const ObjectType* Object, PreCastTransformType&& PreCastTransform)
+	static const IServiceLocatorInterface* Execute(const IServiceLocatorInterface* Object)
 	{
 		return Object;
 	}
 };
 
-template<typename ObjectType, typename PreCastTransformType>
-struct TGetObjectAsSLI<ObjectType, PreCastTransformType, false /* bObjectIsSLIDerived */>
+template<typename ObjectType>
+struct TGetObjectAsSLI<ObjectType, false /* bObjectIsSLIDerived */>
 {
-	static const IServiceLocatorInterface* Execute(const ObjectType* Object, PreCastTransformType&& PreCastTransform)
+	static const IServiceLocatorInterface* Execute(const ObjectType* Object)
 	{
-		return Cast<const IServiceLocatorInterface>(Invoke(PreCastTransform, Object));
+		return Cast<const IServiceLocatorInterface>(Object);
 	}
 };
 

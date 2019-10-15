@@ -42,19 +42,13 @@ namespace ServiceLocatorAccessors_Private
 template<typename ServiceType>
 FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromGameState(const UObject* WorldContextObject)
 {
-	return UServiceLocatorContainer::GetService<ServiceType>(WorldContextObject, [](const UObject* WorldContextObject)
-	{
-		return ServiceLocatorAccessors_Private::GetGameStateFromWorldContextObject(WorldContextObject);
-	});
+	return UServiceLocatorContainer::GetService<ServiceType>(ServiceLocatorAccessors_Private::GetGameStateFromWorldContextObject(WorldContextObject));
 }
 
 template<typename ServiceType>
 FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromGameMode(const UObject* WorldContextObject)
 {
-	return UServiceLocatorContainer::GetService<ServiceType>(WorldContextObject, [](const UObject* WorldContextObject)
-	{
-		return ServiceLocatorAccessors_Private::GetGameModeFromWorldContextObject(WorldContextObject);
-	});
+	return UServiceLocatorContainer::GetService<ServiceType>(ServiceLocatorAccessors_Private::GetGameModeFromWorldContextObject(WorldContextObject));
 }
 
 ///////////////////////////////////////////////////////////////////////////

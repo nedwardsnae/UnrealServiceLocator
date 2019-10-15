@@ -43,7 +43,7 @@ public:
 	 * @return	ServiceType*	The service instance
 	 */
 	template<typename ServiceType>
-	ServiceType* GetService() const;
+	FORCEINLINE ServiceType* GetService() const;
 
 	/////////////////////
 	// Static Functions
@@ -54,18 +54,7 @@ public:
 	 * @return	ServiceType*	The service instance
 	 */
 	template<typename ServiceType, typename ObjectType>
-	static ServiceType* GetService(const ObjectType* Object);
-
-	/**
-	 * Returns an instance of the service specified by the ServiceType template parameter, with
-	 * a PreCastTransform callable which can be used to find another object to find the service locator
-	 * container in
-	 * @param	Object				The object to pass to the PreCastTransform callable
-	 * @param	PreCastTransform	The callable to use to transform the input object to another object where the service locator container can be found
-	 * @return	ServiceType*
-	 */
-	template<typename ServiceType, typename ObjectType, typename PreCastTransformType>
-	static ServiceType* GetService(const ObjectType* Object, PreCastTransformType&& PreCastTransform);
+	FORCEINLINE static ServiceType* GetService(const ObjectType* Object);
 
 protected:
 
@@ -93,7 +82,7 @@ protected:
 ///////////////////////////////////////////////////////////////////////
 
 template<typename ServiceType>
-ServiceType* UServiceLocatorContainer::GetService() const
+FORCEINLINE ServiceType* UServiceLocatorContainer::GetService() const
 {
 	UClass* ServiceTypeClass = TGetServiceClassType<ServiceType>::Execute();
 	check(ServiceTypeClass != nullptr);
@@ -104,17 +93,9 @@ ServiceType* UServiceLocatorContainer::GetService() const
 ///////////////////////////////////////////////////////////////////////
 
 template<typename ServiceType, typename ObjectType>
-ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object)
+FORCEINLINE ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object)
 {
-	return GetService<ServiceType, ObjectType>(Object, FIdentityFunctor());
-}
-
-///////////////////////////////////////////////////////////////////////
-
-template<typename ServiceType, typename ObjectType, typename PreCastTransformType>
-ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object, PreCastTransformType&& PreCastTransform)
-{
-	const IServiceLocatorInterface* ObjectAsSLI = TGetObjectAsSLI<ObjectType, PreCastTransformType>::Execute(Object, Forward<PreCastTransformType>(PreCastTransform));
+	const IServiceLocatorInterface* ObjectAsSLI = TGetObjectAsSLI<ObjectType>::Execute(Object);
 	if (ObjectAsSLI == nullptr)
 	{
 		return nullptr;
