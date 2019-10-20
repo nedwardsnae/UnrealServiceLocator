@@ -20,7 +20,7 @@ struct TIsUInterface
 template <typename T>
 struct TIsUInterface<T, true>
 {
-	template <typename U> static char(&Resolve(typename U*))[(U::StaticClassFlags & CLASS_Interface) ? 2 : 1];
+	template <typename U> static char(&Resolve(U*))[(U::StaticClassFlags & CLASS_Interface) ? 2 : 1];
 	template <typename U> static char(&Resolve(...))[1];
 
 	enum { Value = sizeof(Resolve<T>(0)) - 1 };
