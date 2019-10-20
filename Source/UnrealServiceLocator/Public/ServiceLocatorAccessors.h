@@ -16,15 +16,15 @@ class IServiceLocatorInterface;
 ///////////////////////////////////////////////////////////////////////////
 
 template<typename ServiceType, typename ObjectType>
-FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromObject(const ObjectType* Object)
+FORCEINLINE_DEBUGGABLE static ServiceType* GetService(const ObjectType* Object)
 {
 	return UServiceLocatorContainer::GetService<ServiceType, ObjectType>(Object);
 }
 
 template<typename ServiceType, typename ObjectType>
-FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromObject(const TWeakObjectPtr<ObjectType>& Object)
+FORCEINLINE_DEBUGGABLE static ServiceType* GetService(const TWeakObjectPtr<ObjectType>& Object)
 {
-	return GetServiceFromObject(Object.Get());
+	return GetService(Object.Get());
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -32,23 +32,31 @@ FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromObject(const TWeakObjec
 namespace ServiceLocatorAccessors_Private
 {
 
-	extern UNREALSERVICELOCATOR_API const UObject* GetGameStateFromWorldContextObject(const UObject* WorldContextObject);
-	extern UNREALSERVICELOCATOR_API const UObject* GetGameModeFromWorldContextObject(const UObject* WorldContextObject);
+	extern UNREALSERVICELOCATOR_API const IServiceLocatorInterface* GetGameStateService_GetGameStateSLIFromWorldContextObject(const UObject* WorldContextObject);
+	extern UNREALSERVICELOCATOR_API const IServiceLocatorInterface* GetGameModeService_GetGameModeSLIFromWorldContextObject(const UObject* WorldContextObject);
 
 } // namespace ServiceLocatorAccessors_Private
 
 ///////////////////////////////////////////////////////////////////////////
 
 template<typename ServiceType>
-FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromGameState(const UObject* WorldContextObject)
+FORCEINLINE_DEBUGGABLE static ServiceType* GetGameStateService(const UObject* WorldContextObject)
 {
-	return UServiceLocatorContainer::GetService<ServiceType>(ServiceLocatorAccessors_Private::GetGameStateFromWorldContextObject(WorldContextObject));
+	const IServiceLocatorInterface* ServiceLocatorInterface = ServiceLocatorAccessors_Private::GetGameStateService_GetGameStateSLIFromWorldContextObject(WorldContextObject);
+	if (ServiceLocatorInterface == nullptr)
+		return nullptr;
+
+	return UServiceLocatorContainer::GetService<ServiceType>(ServiceLocatorInterface);
 }
 
 template<typename ServiceType>
-FORCEINLINE_DEBUGGABLE static ServiceType* GetServiceFromGameMode(const UObject* WorldContextObject)
+FORCEINLINE_DEBUGGABLE static ServiceType* GetGameModeService(const UObject* WorldContextObject)
 {
-	return UServiceLocatorContainer::GetService<ServiceType>(ServiceLocatorAccessors_Private::GetGameModeFromWorldContextObject(WorldContextObject));
+	const IServiceLocatorInterface* ServiceLocatorInterface = ServiceLocatorAccessors_Private::GetGameModeService_GetGameModeSLIFromWorldContextObject(WorldContextObject);
+	if (ServiceLocatorInterface == nullptr)
+		return nullptr;
+
+	return UServiceLocatorContainer::GetService<ServiceType>(ServiceLocatorInterface);
 }
 
 ///////////////////////////////////////////////////////////////////////////

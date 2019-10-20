@@ -6,7 +6,6 @@
 
 // Engine
 #include "UObject/Object.h"
-#include "UObject/SoftObjectPtr.h"
 
 // UnrealServiceLocator
 #include "ServiceLocatorHelpers.h"
@@ -16,7 +15,12 @@
 class AActor;
 class UActorComponent;
 class UServiceLocatorConfig;
-enum class EServiceLocateBehaviour : uint8;
+enum class EServiceLocationBehaviour : uint8;
+struct FServiceDescriptor;
+
+///////////////////////////////////////////////////////////////////////////
+
+UNREALSERVICELOCATOR_API DECLARE_LOG_CATEGORY_EXTERN(LogUnrealServiceLocator, Warning, All);
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +33,17 @@ public:
 
 	//////////////////////////////////////////////
 	// Functions
+
+	/////////////////////
+	// Static Functions
+
+	/**
+	 * Returns an instance of the service specified by the ServiceType template parameter
+	 * @param	Object			The object to find the service locator container in
+	 * @return	ServiceType*	The service instance
+	 */
+	template<typename ServiceType, typename ObjectType>
+	FORCEINLINE static ServiceType* GetService(const ObjectType* Object);
 
 	/////////////////////
 	// Member Functions
@@ -45,25 +60,14 @@ public:
 	template<typename ServiceType>
 	FORCEINLINE ServiceType* GetService() const;
 
-	/////////////////////
-	// Static Functions
-
-	/**
-	 * Returns an instance of the service specified by the ServiceType template parameter
-	 * @param	Object			The object to find the service locator container in
-	 * @return	ServiceType*	The service instance
-	 */
-	template<typename ServiceType, typename ObjectType>
-	FORCEINLINE static ServiceType* GetService(const ObjectType* Object);
-
 protected:
 
 	UObject* GetServiceInternal(const UClass* ServiceClass) const;
 
-	UObject* LocateOrCreateService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour);
-	AActor* LocateOrCreateActorService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour);
-	UActorComponent* LocateOrCreateComponentService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour);
-	UObject* LocateOrCreateObjectService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour);
+	UObject* LocateOrCreateService(const FServiceDescriptor& ServiceDescriptor);
+	AActor* LocateOrCreateActorService(const FServiceDescriptor& ServiceDescriptor);
+	UActorComponent* LocateOrCreateComponentService(const FServiceDescriptor& ServiceDescriptor);
+	UObject* LocateOrCreateObjectService(const FServiceDescriptor& ServiceDescriptor);
 
 	//////////////////////////////////////////////
 	// Tweakables
@@ -75,7 +79,10 @@ protected:
 	// Data
 
 	UPROPERTY(Transient)
-	TMap<UClass*, UObject*> Services;
+	TArray<UObject*> Services;
+
+	UPROPERTY(Transient)
+	TMap<UClass*, UObject*> MappedTypesToServices;
 
 };
 
@@ -95,15 +102,23 @@ FORCEINLINE ServiceType* UServiceLocatorContainer::GetService() const
 template<typename ServiceType, typename ObjectType>
 FORCEINLINE ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object)
 {
+	if (Object == nullptr)
+	{
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService: A null object was passed!"));
+		return nullptr;
+	}
+
 	const IServiceLocatorInterface* ObjectAsSLI = TGetObjectAsSLI<ObjectType>::Execute(Object);
 	if (ObjectAsSLI == nullptr)
 	{
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService: Object '%s' does not implement IServiceLocatorInterface!"), *GetNameSafe(Cast<const UObject>(Object)));
 		return nullptr;
 	}
 
 	UServiceLocatorContainer* Container = ObjectAsSLI->GetContainer();
 	if (Container == nullptr)
 	{
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService: Object '%s' did not return a UServiceLocatorContainer!"), *GetNameSafe(Cast<const UObject>(Object)));
 		return nullptr;
 	}
 

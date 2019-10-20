@@ -12,7 +12,7 @@
 
 ///////////////////////////////////////////////////////////////////////////
 
-DEFINE_LOG_CATEGORY_STATIC(LogServiceLocatorContainer, Warning, All);
+DEFINE_LOG_CATEGORY(LogUnrealServiceLocator);
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +20,7 @@ void UServiceLocatorContainer::LocateAndCreateServices()
 {
 	if (Config == nullptr)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: Config is null on container '%s' with outer '%s'"),
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: Config is null on container '%s' with outer '%s'"),
 			*GetNameSafe(this), *GetNameSafe(GetOuter()));
 		return;
 	}
@@ -31,53 +31,66 @@ void UServiceLocatorContainer::LocateAndCreateServices()
 	{
 		const FServiceDescriptor& ServiceDescriptor = *Iter;
 
-		UClass* ConcreteType = ServiceDescriptor.ConcreteType;
-		if (ConcreteType == nullptr)
+		UClass* ServiceType = ServiceDescriptor.ServiceType;
+		if (ServiceType == nullptr)
 		{
-			UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType is null for element '%d' in config '%s'"),
+			UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ServiceType is null for element '%d' in config '%s'"),
 				Iter.GetIndex(), *GetNameSafe(Config));
 			continue;
 		}
 
-		if (ConcreteType->HasAnyClassFlags(CLASS_Abstract | CLASS_Interface))
+		if (ServiceType->HasAnyClassFlags(CLASS_Abstract | CLASS_Interface))
 		{
-			UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType has Abstract or Interface class flags for element '%d' in config '%s'"),
+			UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ServiceType has Abstract or Interface class flags for element '%d' in config '%s'"),
 				Iter.GetIndex(), *GetNameSafe(Config));
 			continue;
 		}
 
-		UObject* ConcreteServiceInstance = LocateOrCreateService(*ConcreteType, ServiceDescriptor.LocateBehaviour);
-		if (ConcreteServiceInstance == nullptr)
+		// If this is a debug only service and we're running a shipping build, skip this service
+		if (ServiceDescriptor.bDebugOnly && UE_BUILD_SHIPPING)
 		{
 			continue;
 		}
 
-		Services.Emplace(ConcreteType, ConcreteServiceInstance);
-
-		for (UClass* InterfaceType : ServiceDescriptor.InterfaceTypes)
+		UObject* ServiceInstance = LocateOrCreateService(ServiceDescriptor);
+		if (ServiceInstance == nullptr)
 		{
-			if (InterfaceType == nullptr)
+			continue;
+		}
+
+		Services.Emplace(ServiceInstance);
+
+		for (UClass* MappedType : ServiceDescriptor.MappedTypes)
+		{
+			if (MappedType == nullptr)
 			{
 				continue;
 			}
 
-			if (ConcreteType->HasAnyClassFlags(CLASS_Interface))
+			if (MappedType->HasAnyClassFlags(CLASS_Interface))
 			{
-				if (!ConcreteType->ImplementsInterface(InterfaceType))
+				if (!ServiceType->ImplementsInterface(MappedType))
 				{
-					UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType '%s' doesn't implement InterfaceType '%s'"),
-						*GetNameSafe(ConcreteType), *GetNameSafe(InterfaceType));
+					UE_LOG(LogUnrealServiceLocator, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ServiceType '%s' doesn't implement MappedType '%s'"),
+						*GetNameSafe(ServiceType), *GetNameSafe(MappedType));
 					continue;
 				}
 			}
-			else if (!ConcreteType->IsChildOf(InterfaceType))
+			else if (!ServiceType->IsChildOf(MappedType))
 			{
-				UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ConcreteType '%s' isn't a child of InterfaceType '%s'"),
-					*GetNameSafe(ConcreteType), *GetNameSafe(InterfaceType));
+				UE_LOG(LogUnrealServiceLocator, Error, TEXT("UServiceLocatorContainer::LocateOrCreateServices: ServiceType '%s' isn't a child of MappedType '%s'"),
+					*GetNameSafe(ServiceType), *GetNameSafe(MappedType));
 				continue;
 			}
 
-			Services.Emplace(InterfaceType, ConcreteServiceInstance);
+			UObject** ExistingMappedTypeService = MappedTypesToServices.Find(MappedType);
+			if (ExistingMappedTypeService != nullptr)
+			{
+				UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: Type '%s' is already mapped to Service '%s', but will be displaced by ServiceType '%s'"),
+					*GetNameSafe(MappedType), *GetNameSafe(*ExistingMappedTypeService), *GetNameSafe(ServiceType));
+			}
+
+			MappedTypesToServices.Emplace(MappedType, ServiceInstance);
 		}
 	}
 }
@@ -91,7 +104,7 @@ UObject* UServiceLocatorContainer::GetServiceInternal(const UClass* ServiceClass
 		return nullptr;
 	}
 
-	UObject* const* FoundService = Services.Find(ServiceClass);
+	UObject* const* FoundService = MappedTypesToServices.Find(ServiceClass);
 	if (FoundService != nullptr)
 	{
 		return *FoundService;
@@ -102,55 +115,71 @@ UObject* UServiceLocatorContainer::GetServiceInternal(const UClass* ServiceClass
 
 ///////////////////////////////////////////////////////////////////////////
 
-UObject* UServiceLocatorContainer::LocateOrCreateService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour)
+UObject* UServiceLocatorContainer::LocateOrCreateService(const FServiceDescriptor& ServiceDescriptor)
 {
-	if (ServiceConcreteType.IsChildOf<AActor>())
+	if (ServiceDescriptor.ServiceType->IsChildOf<AActor>())
 	{
-		return LocateOrCreateActorService(ServiceConcreteType, LocateBehaviour);
+		return LocateOrCreateActorService(ServiceDescriptor);
 	}
 
-	if (ServiceConcreteType.IsChildOf<UActorComponent>())
+	if (ServiceDescriptor.ServiceType->IsChildOf<UActorComponent>())
 	{
-		return LocateOrCreateComponentService(ServiceConcreteType, LocateBehaviour);
+		return LocateOrCreateComponentService(ServiceDescriptor);
 	}
 
-	return LocateOrCreateObjectService(ServiceConcreteType, LocateBehaviour);
+	return LocateOrCreateObjectService(ServiceDescriptor);
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-AActor* UServiceLocatorContainer::LocateOrCreateActorService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour)
+AActor* UServiceLocatorContainer::LocateOrCreateActorService(const FServiceDescriptor& ServiceDescriptor)
 {
 	UWorld* LocalWorld = GetWorld();
 	if (LocalWorld == nullptr)
 	{
-		UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: World is null for container '%s' with outer '%s'"),
+		UE_LOG(LogUnrealServiceLocator, Error, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: World is null for container '%s' with outer '%s'"),
 			*GetNameSafe(this), *GetNameSafe(GetOuter()));
 		return nullptr;
 	}
 
 	// Look for an instance of this service already in the world
-	for (AActor* ServiceInstance : TActorRange<AActor>(LocalWorld, &ServiceConcreteType))
+	for (AActor* ServiceInstance : TActorRange<AActor>(LocalWorld, ServiceDescriptor.ServiceType))
 	{
 		return ServiceInstance;
 	}
 
 	// We need to bail here if we can only find the service, not create it
-	if (LocateBehaviour == EServiceLocateBehaviour::FindOnly)
+	if (ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::FindOnly)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of actor service with type '%s'"),
-			*ServiceConcreteType.GetName());
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of actor service with type '%s'"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
+		return nullptr;
+	}
+
+	// If we should only create this if we're the server, but we're not the server, bail
+	if ((ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::CreateIfNotFoundServerOnly) && !LocalWorld->IsServer())
+	{
+		UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of actor service with type '%s', unable to create due to not being the server"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
+		return nullptr;
+	}
+
+	// If we should only create this if we're a client, but we're the server, bail
+	if ((ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::CreateIfNotFoundClientOnly) && LocalWorld->IsServer())
+	{
+		UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of actor service with type '%s', unable to create due to being the server"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
 		return nullptr;
 	}
 
 	// Create a new instance of the service
 	FActorSpawnParameters ActorSpawnParameters;
 	ActorSpawnParameters.ObjectFlags = RF_Transient;
-	AActor* ServiceInstance = LocalWorld->SpawnActor<AActor>(&ServiceConcreteType, ActorSpawnParameters);
+	AActor* ServiceInstance = LocalWorld->SpawnActor<AActor>(ServiceDescriptor.ServiceType, ActorSpawnParameters);
 	if (ServiceInstance == nullptr)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to spawn instance of actor service with type '%s'"),
-			*ServiceConcreteType.GetName());
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to spawn instance of actor service with type '%s'"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
 		return nullptr;
 	}
 
@@ -159,13 +188,13 @@ AActor* UServiceLocatorContainer::LocateOrCreateActorService(UClass& ServiceConc
 
 ///////////////////////////////////////////////////////////////////////////
 
-UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour)
+UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(const FServiceDescriptor& ServiceDescriptor)
 {
 	// Traverse the outer chain of this container to look for an Actor in which to find/create the component service
 	AActor* OuterAsActor = GetTypedOuter<AActor>();
 	if (OuterAsActor == nullptr)
 	{
-		UE_LOG(LogServiceLocatorContainer, Error, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Outer '%s' and outer chain of container '%s' doesn't have an object of type AActor to add component t!"),
+		UE_LOG(LogUnrealServiceLocator, Error, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Outer '%s' and outer chain of container '%s' doesn't have an object of type AActor to add component to!"),
 			*GetNameSafe(GetOuter()), *GetNameSafe(this));
 		return nullptr;
 	}
@@ -173,25 +202,41 @@ UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(UClass
 	UActorComponent* ServiceInstance = nullptr;
 
 	// Look for an instance of this service already in the actor
-	ServiceInstance = OuterAsActor->FindComponentByClass(&ServiceConcreteType);
+	ServiceInstance = OuterAsActor->FindComponentByClass(ServiceDescriptor.ServiceType);
 	if (ServiceInstance != nullptr)
 	{
 		return ServiceInstance;
 	}
 
 	// We need to bail here if we can only find the service, not create it
-	if (LocateBehaviour == EServiceLocateBehaviour::FindOnly)
+	if (ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::FindOnly)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Unable to find instance of component service with type '%s'"),
-			*ServiceConcreteType.GetName());
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Unable to find instance of component service with type '%s'"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
 		return nullptr;
 	}
 
-	ServiceInstance = NewObject<UActorComponent>(OuterAsActor, &ServiceConcreteType, NAME_None, RF_Transient);
+	// If we should only create this if we're the server, but we're not the server, bail
+	if ((ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::CreateIfNotFoundServerOnly) && ((OuterAsActor->GetWorld() == nullptr) || !OuterAsActor->GetWorld()->IsServer()))
+	{
+		UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of component service with type '%s', unable to create due to not being the server"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
+		return nullptr;
+	}
+
+	// If we should only create this if we're a client, but we're the server, bail
+	if ((ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::CreateIfNotFoundClientOnly) && ((OuterAsActor->GetWorld() == nullptr) || OuterAsActor->GetWorld()->IsServer()))
+	{
+		UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of component service with type '%s', unable to create due to being the server"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
+		return nullptr;
+	}
+
+	ServiceInstance = NewObject<UActorComponent>(OuterAsActor, ServiceDescriptor.ServiceType, NAME_None, RF_Transient);
 	if (ServiceInstance == nullptr)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Unable to create instance of component service with type '%s'"),
-			*ServiceConcreteType.GetName());
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateComponentService: Unable to create instance of component service with type '%s'"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
 		return nullptr;
 	}
 
@@ -203,27 +248,43 @@ UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(UClass
 
 ///////////////////////////////////////////////////////////////////////////
 
-UObject* UServiceLocatorContainer::LocateOrCreateObjectService(UClass& ServiceConcreteType, EServiceLocateBehaviour LocateBehaviour)
+UObject* UServiceLocatorContainer::LocateOrCreateObjectService(const FServiceDescriptor& ServiceDescriptor)
 {
-	UObject* ServiceInstance = static_cast<UObject*>(FindObjectWithOuter(GetOuter(), &ServiceConcreteType));
+	UObject* ServiceInstance = static_cast<UObject*>(FindObjectWithOuter(GetOuter(), ServiceDescriptor.ServiceType));
 	if (ServiceInstance != nullptr)
 	{
 		return ServiceInstance;
 	}
 
 	// We need to bail here if we can only find the service, not create it
-	if (LocateBehaviour == EServiceLocateBehaviour::FindOnly)
+	if (ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::FindOnly)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateObjectService: Unable to find instance of object service with type '%s'"),
-			*ServiceConcreteType.GetName());
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateObjectService: Unable to find instance of object service with type '%s'"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
 		return nullptr;
 	}
 
-	ServiceInstance = NewObject<UObject>(GetOuter(), &ServiceConcreteType, NAME_None, RF_Transient);
+	// If we should only create this if we're the server, but we're not the server, bail
+	if ((ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::CreateIfNotFoundServerOnly) && ((GetWorld() == nullptr) || !GetWorld()->IsServer()))
+	{
+		UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of object service with type '%s', unable to create due to not being the server"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
+		return nullptr;
+	}
+
+	// If we should only create this if we're a client, but we're the server, bail
+	if ((ServiceDescriptor.LocateBehaviour == EServiceLocationBehaviour::CreateIfNotFoundClientOnly) && ((GetWorld() == nullptr) || GetWorld()->IsServer()))
+	{
+		UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("UServiceLocatorContainer::LocateOrCreateActorService: Unable to find instance of object service with type '%s', unable to create due to being the server"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
+		return nullptr;
+	}
+
+	ServiceInstance = NewObject<UObject>(GetOuter(), ServiceDescriptor.ServiceType, NAME_None, RF_Transient);
 	if (ServiceInstance == nullptr)
 	{
-		UE_LOG(LogServiceLocatorContainer, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateObjectService: Unable to create instance of object service with type '%s'"),
-			*ServiceConcreteType.GetName());
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateObjectService: Unable to create instance of object service with type '%s'"),
+			*GetNameSafe(ServiceDescriptor.ServiceType));
 		return nullptr;
 	}
 

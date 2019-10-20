@@ -15,6 +15,13 @@
 // UnrealServiceLocatorEditor
 // ...
 
+// Forward Declarations
+
+class FDetailWidgetRow;
+class IPropertyHandle;
+class IDetailChildrenBuilder;
+struct FServiceDescriptor;
+
 ///////////////////////////////////////////////////////////////////////////
 
 class FServiceLocatorCustomization : public IPropertyTypeCustomization
@@ -26,10 +33,13 @@ public:
 	//////////////////////////////////////////////
 	// Overridden Functions - IPropertyTypeCustomization
 
-	virtual void CustomizeHeader(TSharedRef<class IPropertyHandle> StructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
-	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InStructPropertyHandle, class IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override {}
+	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
+	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InStructPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
 
 private:
+
+	//////////////////////////////////////////////
+	// Internal Types
 
 	struct FServiceLocatorTreeItem;
 
@@ -46,6 +56,9 @@ private:
 		bool										bEditable = false;
 	};
 
+	//////////////////////////////////////////////
+	// Functions
+
 	void OnClassCheckStatusChanged(ECheckBoxState NewCheckState, FServiceLocatorTreeItemSharedPtr NodeChanged);
 	ECheckBoxState IsClassChecked(FServiceLocatorTreeItemSharedPtr Node) const;
 
@@ -53,13 +66,16 @@ private:
 	void RefreshTreeItems();
 	void ConcreteTypeChangedHandler();
 
-	FServiceLocatorTreeItemSharedPtr InterfacesTreeItem;
-	FServiceLocatorTreeItemSharedPtr ParentClassesTreeItem;
-
-	TArray<struct FServiceDescriptor*> EditableDescriptors;
-
 	TSharedRef<ITableRow> OnGenerateRow(FServiceLocatorTreeItemSharedPtr InItem, const TSharedRef<STableViewBase>& OwnerTable);
 	void OnGetChildren(FServiceLocatorTreeItemSharedPtr InItem, TArray<FServiceLocatorTreeItemSharedPtr>& OutChildren);
+
+	//////////////////////////////////////////////
+	// Data
+
+	FServiceLocatorTreeItemSharedPtr InterfacesTreeItem;
+	FServiceLocatorTreeItemSharedPtr ConcreteClassesTreeItem;
+
+	TArray<FServiceDescriptor*> EditableDescriptors;
 
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 
@@ -72,3 +88,5 @@ private:
 	TSharedPtr<STreeView<FServiceLocatorTreeItemSharedPtr>> ClassTreeWidget;
 
 };
+
+///////////////////////////////////////////////////////////////////////////

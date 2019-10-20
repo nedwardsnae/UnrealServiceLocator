@@ -9,8 +9,10 @@
 #include "ServiceLocatorTypes.h"
 
 // Engine
-#include "Algo/Transform.h"
 #include "DetailWidgetRow.h"
+#include "IDetailChildrenBuilder.h"
+#include "IDetailPropertyRow.h"
+#include "Algo/Transform.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SNullWidget.h"
 
@@ -28,38 +30,77 @@ TSharedRef<IPropertyTypeCustomization> FServiceLocatorCustomization::MakeInstanc
 void FServiceLocatorCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	StructPropertyHandle = InStructPropertyHandle;
+	StructPropertyHandle->SetOnPropertyResetToDefault(FSimpleDelegate::CreateSP(this, &FServiceLocatorCustomization::ConcreteTypeChangedHandler));
 
 	BuildEditableDescriptors();
 
-	StructPropertyHandle->SetOnPropertyResetToDefault(FSimpleDelegate::CreateSP(this, &FServiceLocatorCustomization::ConcreteTypeChangedHandler));
+	TSharedPtr<IPropertyHandle> ServiceTypeHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FServiceDescriptor, ServiceType));
+	if (ensure(ServiceTypeHandle.IsValid()))
+	{
+		ServiceTypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FServiceLocatorCustomization::ConcreteTypeChangedHandler));
 
-	TSharedPtr<IPropertyHandle> ConcreteTypeHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FServiceDescriptor, ConcreteType));
-	if (!ConcreteTypeHandle.IsValid())
-		return;
-
-	ConcreteTypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FServiceLocatorCustomization::ConcreteTypeChangedHandler));
-
-	HeaderRow
-		.NameContent()
-		[
-			ConcreteTypeHandle->CreatePropertyValueWidget()
-		]
-		.ValueContent()
-		.MaxDesiredWidth(512)
-		[
-			SAssignNew(ClassTreeContainerWidget, SBorder)
-			.Padding(FMargin(4.f))
+		HeaderRow
+			.NameContent()
 			[
-				SAssignNew(ClassTreeWidget, STreeView<FServiceLocatorTreeItemSharedPtr>)
-				.TreeItemsSource(&ServiceLocatorTreeItems)
-				.OnGenerateRow(this, &FServiceLocatorCustomization::OnGenerateRow)
-				.OnGetChildren(this, &FServiceLocatorCustomization::OnGetChildren)
-				//.OnExpansionChanged( this, &FServiceLocatorCustomization::OnExpansionChanged)
-				.SelectionMode(ESelectionMode::Multi)
-			]
-		];
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(0.0f, 0.0f, 4.0f, 0.0f)
+				[
+					StructPropertyHandle->CreatePropertyNameWidget()
+				]
+				+ SHorizontalBox::Slot()
+				[
+					ServiceTypeHandle->CreatePropertyValueWidget()
+				]
+			];
+	}
+}
 
-	RefreshTreeItems();
+///////////////////////////////////////////////////////////////////////////
+
+void FServiceLocatorCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> InStructPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	TSharedPtr<IPropertyHandle> MappedTypesHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FServiceDescriptor, MappedTypes));
+	if (ensure(MappedTypesHandle.IsValid()))
+	{
+		MappedTypesHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FServiceLocatorCustomization::ConcreteTypeChangedHandler));
+
+		ChildBuilder.AddProperty(MappedTypesHandle.ToSharedRef())
+			.CustomWidget()
+			.NameContent()
+			[
+				MappedTypesHandle->CreatePropertyNameWidget()
+			]
+			.ValueContent()
+			.MaxDesiredWidth(512)
+			[
+				SAssignNew(ClassTreeContainerWidget, SBorder)
+				.Padding(FMargin(4.f))
+				[
+					SAssignNew(ClassTreeWidget, STreeView<FServiceLocatorTreeItemSharedPtr>)
+					.TreeItemsSource(&ServiceLocatorTreeItems)
+					.OnGenerateRow(this, &FServiceLocatorCustomization::OnGenerateRow)
+					.OnGetChildren(this, &FServiceLocatorCustomization::OnGetChildren)
+					//.OnExpansionChanged( this, &FServiceLocatorCustomization::OnExpansionChanged)
+					.SelectionMode(ESelectionMode::Multi)
+				]
+			];
+
+		RefreshTreeItems();
+	}
+
+	TSharedPtr<IPropertyHandle> LocateBehaviourHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FServiceDescriptor, LocateBehaviour));
+	if (ensure(LocateBehaviourHandle.IsValid()))
+	{
+		ChildBuilder.AddProperty(LocateBehaviourHandle.ToSharedRef());
+	}
+
+	TSharedPtr<IPropertyHandle> DebugOnlyHandle = StructPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FServiceDescriptor, bDebugOnly));
+	if (ensure(DebugOnlyHandle.IsValid()))
+	{
+		ChildBuilder.AddProperty(DebugOnlyHandle.ToSharedRef());
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -76,16 +117,18 @@ void FServiceLocatorCustomization::OnClassCheckStatusChanged(ECheckBoxState NewC
 	{
 		for (FServiceDescriptor* ServiceDescriptor : EditableDescriptors)
 		{
-			ServiceDescriptor->InterfaceTypes.AddUnique(NodeClass);
+			ServiceDescriptor->MappedTypes.AddUnique(NodeClass);
 		}
 	}
 	else
 	{
 		for (FServiceDescriptor* ServiceDescriptor : EditableDescriptors)
 		{
-			ServiceDescriptor->InterfaceTypes.Remove(NodeClass);
+			ServiceDescriptor->MappedTypes.Remove(NodeClass);
 		}
 	}
+
+	RefreshTreeItems();
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -97,7 +140,7 @@ ECheckBoxState FServiceLocatorCustomization::IsClassChecked(FServiceLocatorTreeI
 	TOptional<bool> bIsChecked;
 	for (FServiceDescriptor* ServiceDescriptor : EditableDescriptors)
 	{
-		const bool bContainsClass = ServiceDescriptor->InterfaceTypes.Contains(NodeClass);
+		const bool bContainsClass = ServiceDescriptor->MappedTypes.Contains(NodeClass);
 		
 		if (!bIsChecked.IsSet())
 		{
@@ -145,62 +188,74 @@ void FServiceLocatorCustomization::RefreshTreeItems()
 	}
 	InterfacesTreeItem->Children.Reset();
 
-	if (!ParentClassesTreeItem.IsValid())
+	if (!ConcreteClassesTreeItem.IsValid())
 	{
-		ParentClassesTreeItem = MakeShared<FServiceLocatorTreeItem>();
-		ParentClassesTreeItem->DisplayText = FText(LOCTEXT("TreeItem_ParentClasses", "Parent Classes")).ToString();
+		ConcreteClassesTreeItem = MakeShared<FServiceLocatorTreeItem>();
+		ConcreteClassesTreeItem->DisplayText = FText(LOCTEXT("TreeItem_ConcreteClasses", "Concrete Classes")).ToString();
 	}
-	ParentClassesTreeItem->Children.Reset();
+	ConcreteClassesTreeItem->Children.Reset();
 
+	// If we're customising multiple service descriptors, these are the common sets of classes to all descriptors
 	TOptional<TSet<UClass*>> CommonInterfaceClasses;
-	TOptional<TSet<UClass*>> CommonParentClasses;
+	TOptional<TSet<UClass*>> CommonConcreteClasses;
 
-	TSet<UClass*> InterfaceClasses;
-	TSet<UClass*> ParentClasses;
+	// These are the classes we're going to display, in some sort of order.
+	TArray<UClass*> InterfaceClasses;
+	TArray<UClass*> ConcreteClasses;
 
 	for (FServiceDescriptor* ServiceDescriptor : EditableDescriptors)
 	{
-		TSet<UClass*> LocalInterfaceClasses;
-		TSet<UClass*> LocalParentClasses;
+		TArray<UClass*> LocalInterfaceClasses;
+		TArray<UClass*> LocalConcreteClasses;
 
 		if (ServiceDescriptor == nullptr)
 			continue;
 
-		for (UClass* ServiceDescriptorInterfaceType : ServiceDescriptor->InterfaceTypes)
+		// The service type for this descriptor could be null
+		UClass* ServiceType = ServiceDescriptor->ServiceType;
+		if (ServiceType != nullptr)
 		{
-			if (ServiceDescriptorInterfaceType == nullptr)
+			for (const FImplementedInterface& ImplementedInterface : ServiceType->Interfaces)
+			{
+				LocalInterfaceClasses.AddUnique(ImplementedInterface.Class);
+			}
+
+			while (ServiceType != nullptr)
+			{
+				LocalConcreteClasses.AddUnique(ServiceType);
+				ServiceType = ServiceType->GetSuperClass();
+			}
+		}
+
+		for (UClass* MappedType : ServiceDescriptor->MappedTypes)
+		{
+			if (MappedType == nullptr)
 				continue;
 
-			if (ServiceDescriptorInterfaceType->HasAllClassFlags(CLASS_Interface))
+			if (MappedType->HasAllClassFlags(CLASS_Interface))
 			{
-				InterfaceClasses.Add(ServiceDescriptorInterfaceType);
+				InterfaceClasses.AddUnique(MappedType);
 			}
 			else
 			{
-				ParentClasses.Add(ServiceDescriptorInterfaceType);
+				ConcreteClasses.AddUnique(MappedType);
 			}
 		}
 
-		UClass* ConcreteType = ServiceDescriptor->ConcreteType;
-		if (ConcreteType == nullptr)
-			continue;
-
-		for (const FImplementedInterface& ImplementedInterface : ConcreteType->Interfaces)
+		auto AppendUnique = [](TArray<UClass*>& InOut, const TArray<UClass*>& In)
 		{
-			LocalInterfaceClasses.Add(ImplementedInterface.Class);
-		}
+			InOut.Reserve(InOut.Num() + In.Num());
+			for (UClass* InElem : In)
+				InOut.AddUnique(InElem);
+		};
 
-		while (ConcreteType != nullptr)
-		{
-			LocalParentClasses.Add(ConcreteType);
-			ConcreteType = ConcreteType->GetSuperClass();
-		}
-
-		InterfaceClasses.Append(LocalInterfaceClasses);
-		CommonInterfaceClasses = CommonInterfaceClasses.IsSet() ? CommonInterfaceClasses->Intersect(LocalInterfaceClasses) : MoveTemp(LocalInterfaceClasses);
+		AppendUnique(InterfaceClasses, LocalInterfaceClasses);
+		TSet<UClass*> LocalInterfaceClassesSet(MoveTemp(LocalInterfaceClasses));
+		CommonInterfaceClasses = CommonInterfaceClasses.IsSet() ? CommonInterfaceClasses->Intersect(LocalInterfaceClassesSet) : MoveTemp(LocalInterfaceClassesSet);
 		
-		ParentClasses.Append(LocalParentClasses);
-		CommonParentClasses = CommonParentClasses.IsSet() ? CommonParentClasses->Intersect(LocalParentClasses) : MoveTemp(LocalParentClasses);
+		AppendUnique(ConcreteClasses, LocalConcreteClasses);
+		TSet<UClass*> LocalParentClassesSet(MoveTemp(LocalConcreteClasses));
+		CommonConcreteClasses = CommonConcreteClasses.IsSet() ? CommonConcreteClasses->Intersect(LocalParentClassesSet) : MoveTemp(LocalParentClassesSet);
 	}
 
 	if ((InterfaceClasses.Num() > 0) && ensure(CommonInterfaceClasses.IsSet()))
@@ -216,23 +271,23 @@ void FServiceLocatorCustomization::RefreshTreeItems()
 		ServiceLocatorTreeItems.Add(InterfacesTreeItem);
 	}
 
-	if ((ParentClasses.Num() > 0) && ensure(CommonParentClasses.IsSet()))
+	if ((ConcreteClasses.Num() > 0) && ensure(CommonConcreteClasses.IsSet()))
 	{
-		for (UClass* ParentClass : ParentClasses)
+		for (UClass* ConcreteClass : ConcreteClasses)
 		{
-			FServiceLocatorTreeItemSharedPtr NewChild = ParentClassesTreeItem->Children.Emplace_GetRef(MakeShared<FServiceLocatorTreeItem>());
-			NewChild->Class			= ParentClass;
-			NewChild->DisplayText	= ParentClass->GetDisplayNameText().ToString();
-			NewChild->Parent		= ParentClassesTreeItem;
-			NewChild->bEditable		= CommonParentClasses->Contains(ParentClass);
+			FServiceLocatorTreeItemSharedPtr NewChild = ConcreteClassesTreeItem->Children.Emplace_GetRef(MakeShared<FServiceLocatorTreeItem>());
+			NewChild->Class			= ConcreteClass;
+			NewChild->DisplayText	= ConcreteClass->GetDisplayNameText().ToString();
+			NewChild->Parent		= ConcreteClassesTreeItem;
+			NewChild->bEditable		= CommonConcreteClasses->Contains(ConcreteClass);
 		}
-		ServiceLocatorTreeItems.Add(ParentClassesTreeItem);
+		ServiceLocatorTreeItems.Add(ConcreteClassesTreeItem);
 	}
 
 	if (ClassTreeWidget.IsValid())
 	{
 		ClassTreeWidget->SetItemExpansion(InterfacesTreeItem, true);
-		ClassTreeWidget->SetItemExpansion(ParentClassesTreeItem, true);
+		ClassTreeWidget->SetItemExpansion(ConcreteClassesTreeItem, true);
 		ClassTreeWidget->RequestTreeRefresh();
 	}
 }
