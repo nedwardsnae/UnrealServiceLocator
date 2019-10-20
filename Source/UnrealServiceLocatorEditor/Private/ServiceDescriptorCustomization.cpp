@@ -234,11 +234,11 @@ void FServiceLocatorCustomization::RefreshTreeItems()
 
 			if (MappedType->HasAllClassFlags(CLASS_Interface))
 			{
-				InterfaceClasses.AddUnique(MappedType);
+				LocalInterfaceClasses.AddUnique(MappedType);
 			}
 			else
 			{
-				ConcreteClasses.AddUnique(MappedType);
+				LocalConcreteClasses.AddUnique(MappedType);
 			}
 		}
 
