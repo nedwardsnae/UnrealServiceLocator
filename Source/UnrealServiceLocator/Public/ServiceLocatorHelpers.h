@@ -75,7 +75,7 @@ struct TGetServiceClassType<ServiceType, false /* bIsIInterface */, false /* bIs
 template<typename ServiceType>
 struct TGetServiceClassType<ServiceType, false /* bIsIInterface */, true /* bIsUInterface */>
 {
-	static UClass Execute()
+	static UClass* Execute()
 	{
 		static_assert(TIsSame<ServiceType, ServiceType*>::Value, "Please use the I-prefix interface type instead of the U-prefix type!");
 		return nullptr;
