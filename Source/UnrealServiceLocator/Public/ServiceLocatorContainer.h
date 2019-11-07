@@ -89,7 +89,7 @@ protected:
 ///////////////////////////////////////////////////////////////////////
 
 template<typename ServiceType>
-FORCEINLINE ServiceType* UServiceLocatorContainer::GetService() const
+ServiceType* UServiceLocatorContainer::GetService() const
 {
 	UClass* ServiceTypeClass = TGetServiceClassType<ServiceType>::Execute();
 	check(ServiceTypeClass != nullptr);
@@ -100,25 +100,25 @@ FORCEINLINE ServiceType* UServiceLocatorContainer::GetService() const
 ///////////////////////////////////////////////////////////////////////
 
 template<typename ServiceType, typename ObjectType>
-FORCEINLINE ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object)
+ServiceType* UServiceLocatorContainer::GetService(const ObjectType* Object)
 {
 	if (Object == nullptr)
 	{
-		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService: A null object was passed!"));
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService<%s>: A null object was passed!"), *TGetServiceClassType<ServiceType>::Execute()->GetName());
 		return nullptr;
 	}
 
 	const IServiceLocatorInterface* ObjectAsSLI = TGetObjectAsSLI<ObjectType>::Execute(Object);
 	if (ObjectAsSLI == nullptr)
 	{
-		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService: Object '%s' does not implement IServiceLocatorInterface!"), *GetNameSafe(Cast<const UObject>(Object)));
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService<%s>: Object '%s' does not implement IServiceLocatorInterface!"), *TGetServiceClassType<ServiceType>::Execute()->GetName(), *GetNameSafe(Cast<const UObject>(Object)));
 		return nullptr;
 	}
 
 	UServiceLocatorContainer* Container = ObjectAsSLI->GetContainer();
 	if (Container == nullptr)
 	{
-		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService: Object '%s' did not return a UServiceLocatorContainer!"), *GetNameSafe(Cast<const UObject>(Object)));
+		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::GetService<%s>: Object '%s' did not return a UServiceLocatorContainer!"), *TGetServiceClassType<ServiceType>::Execute()->GetName(), *GetNameSafe(Cast<const UObject>(Object)));
 		return nullptr;
 	}
 

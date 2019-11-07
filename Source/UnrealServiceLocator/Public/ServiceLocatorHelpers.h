@@ -59,7 +59,7 @@ struct TGetServiceClassType<ServiceType, true /* bIsIInterface */, false /* bIsU
 {
 	static UClass* Execute()
 	{
-		return ::StaticClass<ServiceType::UClassType>();
+		return ::StaticClass<typename ServiceType::UClassType>();
 	}
 };
 

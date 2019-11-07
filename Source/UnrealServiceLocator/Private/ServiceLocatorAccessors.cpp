@@ -30,6 +30,12 @@ namespace ServiceLocatorAccessors_Private
 			UE_LOG(LogUnrealServiceLocator, Warning, TEXT("GetGameStateService: Could not obtain World from context object '%s'"), *GetNameSafe(WorldContextObject));
 			return nullptr;
 		}
+
+		if (!World->IsGameWorld())
+		{
+			UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("GetGameStateService: World '%s' isn't a game world, so the Game State will not be valid."), *GetNameSafe(World));
+			return nullptr;
+		}
 		
 		AGameStateBase* GameStateBase = World->GetGameState();
 		if (GameStateBase == nullptr)
@@ -60,6 +66,12 @@ namespace ServiceLocatorAccessors_Private
 		if (World == nullptr)
 		{
 			UE_LOG(LogUnrealServiceLocator, Warning, TEXT("GetGameModeService: Could not obtain World from context object '%s'"), *GetNameSafe(WorldContextObject));
+			return nullptr;
+		}
+
+		if (!World->IsGameWorld())
+		{
+			UE_LOG(LogUnrealServiceLocator, Verbose, TEXT("GetGameModeService: World '%s' isn't a game world, so the Game Mode will not be valid."), *GetNameSafe(World));
 			return nullptr;
 		}
 		

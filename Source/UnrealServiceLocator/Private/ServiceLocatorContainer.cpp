@@ -9,15 +9,31 @@
 // Engine
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "Stats/Stats2.h"
 
 ///////////////////////////////////////////////////////////////////////////
+// Logging
 
 DEFINE_LOG_CATEGORY(LogUnrealServiceLocator);
+
+///////////////////////////////////////////////////////////////////////////
+// Stats
+
+DECLARE_STATS_GROUP(TEXT("UnrealServiceLocator"), STATGROUP_UnrealServiceLocator, STATCAT_Advanced);
+DECLARE_DWORD_COUNTER_STAT(TEXT("UServiceLocatorContainer::GetServiceInternal Frame Calls"), STAT_UServiceLocatorContainer_GetServiceInternal_FrameCalls, STATGROUP_UnrealServiceLocator);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("UServiceLocatorContainer::GetServiceInternal Total Calls"), STAT_UServiceLocatorContainer_GetServiceInternal_TotalCalls, STATGROUP_UnrealServiceLocator);
+DECLARE_CYCLE_STAT(TEXT("UServiceLocatorContainer::GetServiceInternal"), STAT_UServiceLocatorContainer_GetServiceInternal, STATGROUP_UnrealServiceLocator);
+DECLARE_CYCLE_STAT(TEXT("UServiceLocatorContainer::LocateAndCreateServices"), STAT_UServiceLocatorContainer_LocateAndCreateServices, STATGROUP_UnrealServiceLocator);
+DECLARE_CYCLE_STAT(TEXT("UServiceLocatorContainer::LocateOrCreateActorService"), STAT_UServiceLocatorContainer_LocateOrCreateActorService, STATGROUP_UnrealServiceLocator);
+DECLARE_CYCLE_STAT(TEXT("UServiceLocatorContainer::LocateOrCreateComponentService"), STAT_UServiceLocatorContainer_LocateOrCreateComponentService, STATGROUP_UnrealServiceLocator);
+DECLARE_CYCLE_STAT(TEXT("UServiceLocatorContainer::LocateOrCreateObjectService"), STAT_UServiceLocatorContainer_LocateOrCreateObjectService, STATGROUP_UnrealServiceLocator);
 
 ///////////////////////////////////////////////////////////////////////////
 
 void UServiceLocatorContainer::LocateAndCreateServices()
 {
+	SCOPE_CYCLE_COUNTER(STAT_UServiceLocatorContainer_LocateAndCreateServices);
+
 	if (Config == nullptr)
 	{
 		UE_LOG(LogUnrealServiceLocator, Warning, TEXT("UServiceLocatorContainer::LocateOrCreateServices: Config is null on container '%s' with outer '%s'"),
@@ -99,6 +115,10 @@ void UServiceLocatorContainer::LocateAndCreateServices()
 
 UObject* UServiceLocatorContainer::GetServiceInternal(const UClass* ServiceClass) const
 {
+	INC_DWORD_STAT(STAT_UServiceLocatorContainer_GetServiceInternal_FrameCalls);
+	INC_DWORD_STAT(STAT_UServiceLocatorContainer_GetServiceInternal_TotalCalls);
+	SCOPE_CYCLE_COUNTER(STAT_UServiceLocatorContainer_GetServiceInternal);
+
 	if (!IsValid(ServiceClass))
 	{
 		return nullptr;
@@ -134,6 +154,8 @@ UObject* UServiceLocatorContainer::LocateOrCreateService(const FServiceDescripto
 
 AActor* UServiceLocatorContainer::LocateOrCreateActorService(const FServiceDescriptor& ServiceDescriptor)
 {
+	SCOPE_CYCLE_COUNTER(STAT_UServiceLocatorContainer_LocateOrCreateActorService);
+
 	UWorld* LocalWorld = GetWorld();
 	if (LocalWorld == nullptr)
 	{
@@ -190,6 +212,8 @@ AActor* UServiceLocatorContainer::LocateOrCreateActorService(const FServiceDescr
 
 UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(const FServiceDescriptor& ServiceDescriptor)
 {
+	SCOPE_CYCLE_COUNTER(STAT_UServiceLocatorContainer_LocateOrCreateComponentService);
+
 	// Traverse the outer chain of this container to look for an Actor in which to find/create the component service
 	AActor* OuterAsActor = GetTypedOuter<AActor>();
 	if (OuterAsActor == nullptr)
@@ -250,6 +274,8 @@ UActorComponent* UServiceLocatorContainer::LocateOrCreateComponentService(const 
 
 UObject* UServiceLocatorContainer::LocateOrCreateObjectService(const FServiceDescriptor& ServiceDescriptor)
 {
+	SCOPE_CYCLE_COUNTER(STAT_UServiceLocatorContainer_LocateOrCreateObjectService);
+
 	UObject* ServiceInstance = static_cast<UObject*>(FindObjectWithOuter(GetOuter(), ServiceDescriptor.ServiceType));
 	if (ServiceInstance != nullptr)
 	{
